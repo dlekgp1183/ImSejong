@@ -12,96 +12,153 @@ st.set_page_config(
 )
 
 # -----------------------------------
-# 현재 경로
+# 상태 저장
+# -----------------------------------
+if "show_qr" not in st.session_state:
+    st.session_state.show_qr = False
+
+# -----------------------------------
+# 이미지 경로
 # -----------------------------------
 BASE_DIR = Path(__file__).parent
 
-# 이미지 경로
 HOME_PATH = BASE_DIR / "home.png"
+QR_PATH = BASE_DIR / "qr.png"
 
 # -----------------------------------
-# 이미지 -> base64 변환
+# base64 변환
 # -----------------------------------
-def get_base64(image_path):
-    with open(image_path, "rb") as img:
-        return base64.b64encode(img.read()).decode()
+def get_base64(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
 home_img = get_base64(HOME_PATH)
+qr_img = get_base64(QR_PATH)
 
 # -----------------------------------
-# 화면 출력
+# 버튼 이벤트
+# -----------------------------------
+def open_qr():
+    st.session_state.show_qr = True
+
+def close_qr():
+    st.session_state.show_qr = False
+
+# -----------------------------------
+# CSS
 # -----------------------------------
 st.markdown(f"""
 <style>
 
-/* ---------------------------
-   전체 기본 설정
----------------------------- */
+/* 전체 */
 html, body, [data-testid="stAppViewContainer"] {{
     margin: 0;
     padding: 0;
     overflow: hidden;
     background: black;
-
-    overscroll-behavior: none;
-    touch-action: manipulation;
 }}
 
-/* ---------------------------
-   Streamlit UI 제거
----------------------------- */
-
-/* 상단 헤더 제거 */
-header {{
+header, footer {{
     display: none !important;
 }}
 
-/* 우측 상단 메뉴 제거 */
-[data-testid="stToolbar"] {{
-    display: none !important;
-}}
-
-/* 우하단 streamlit 버튼 제거 */
+[data-testid="stToolbar"],
 [data-testid="stStatusWidget"] {{
     display: none !important;
 }}
 
-/* deploy 버튼 제거 */
-.stDeployButton {{
-    display: none !important;
-}}
-
-/* footer 제거 */
-footer {{
-    display: none !important;
-}}
-
-/* 기본 패딩 제거 */
 .block-container {{
     padding: 0 !important;
     max-width: 430px;
     margin: auto;
 }}
 
-/* ---------------------------
-   핸드폰 화면
----------------------------- */
+/* 폰 영역 */
 .phone {{
     position: relative;
-
     width: 100%;
     height: 100vh;
-
     overflow: hidden;
+    background: black;
+}}
+
+/* 홈 화면 */
+.home {{
+    position: absolute;
+    inset: 0;
 
     background-image: url("data:image/png;base64,{home_img}");
     background-size: cover;
     background-position: center top;
-    background-repeat: no-repeat;
+
+    transition: all 0.4s ease;
+}}
+
+/* blur */
+.home.blur {{
+    filter: blur(10px) brightness(0.7);
+    transform: scale(1.03);
+}}
+
+/* QR 시트 */
+.qr {{
+    position: absolute;
+
+    left: 0;
+    bottom: 0;
+
+    width: 100%;
+    height: 88%;
+
+    border-radius: 30px 30px 0 0;
+
+    background-image: url("data:image/png;base64,{qr_img}");
+    background-size: cover;
+    background-position: center top;
+
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.35);
+
+    z-index: 10;
 }}
 
 </style>
-
-<div class="phone"></div>
-
 """, unsafe_allow_html=True)
+
+# -----------------------------------
+# 메인 화면
+# -----------------------------------
+phone_html = f"""
+<div class="phone">
+    <div class="home {'blur' if st.session_state.show_qr else ''}"></div>
+"""
+
+# QR 표시 여부
+if st.session_state.show_qr:
+    phone_html += """
+    <div class="qr"></div>
+    """
+
+phone_html += "</div>"
+
+st.markdown(phone_html, unsafe_allow_html=True)
+
+# -----------------------------------
+# 버튼
+# -----------------------------------
+btn_col1, btn_col2, btn_col3 = st.columns([1,1,1])
+
+with btn_col2:
+
+    if not st.session_state.show_qr:
+        st.button(
+            "My QR",
+            use_container_width=True,
+            on_click=open_qr
+        )
+
+    else:
+        st.button(
+            "닫기",
+            use_container_width=True,
+            on_click=close_qr
+        )
