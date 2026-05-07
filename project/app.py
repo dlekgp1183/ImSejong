@@ -3,122 +3,159 @@ import base64
 from pathlib import Path
 
 # 1. 페이지 설정
-st.set_page_config(
-    page_title="IM세종",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="IM세종", layout="centered")
 
 # 2. 상태 저장
 if "show_qr" not in st.session_state:
     st.session_state.show_qr = False
 
-# 3. 이미지 로드 및 Base64 변환
+# 3. 이미지 로드
 BASE_DIR = Path(__file__).parent
-HOME_PATH = BASE_DIR / "home.png"
-QR_PATH = BASE_DIR / "qr.png"
-
 def get_base64(path):
-    if path.exists():
+    if Path(path).exists():
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
 
-home_img = get_base64(HOME_PATH)
-qr_img = get_base64(QR_PATH)
+home_img = get_base64(BASE_DIR / "home.png")
+qr_img = get_base64(BASE_DIR / "qr.png")
 
-# 4. CSS (슬라이드 애니메이션 최적화)
+# 4. CSS 및 스타일 설정
+blur_style = f"""
+    filter: blur(10px) brightness(0.5) saturate(0.8);
+    transform: scale(1.1);
+""" if st.session_state.show_qr else ""
+
 st.markdown(f"""
 <style>
-/* 전체 화면 설정 */
-[data-testid="stAppViewContainer"] {{
-    background: black;
-}}
+    [data-testid="stAppViewContainer"] {{ background: black; }}
+    header, footer {{ display: none !important; }}
+    .block-container {{ padding: 0 !important; max-width: 430px; margin: auto; }}
 
-header, footer {{ display: none !important; }}
+    .phone {{
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+        background: black;
+    }}
 
-.block-container {{
-    padding: 0 !important;
-    max-width: 430px;
-    margin: auto;
-}}
+    .home {{
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/png;base64,{home_img}");
+        background-size: cover;
+        background-position: center top;
+        transition: all 0.6s ease;
+        {blur_style}
+    }}
 
-.phone {{
-    position: relative;
-    width: 100%;
-    height: 100vh;
-    overflow: hidden;
-    background: black;
-}}
+    .qr-sheet {{
+        position: absolute;
+        left: 0;
+        bottom: {"0" if st.session_state.show_qr else "-100%"};
+        width: 100%;
+        height: 88%;
+        border-radius: 40px 40px 0 0;
+        background-image: url("data:image/png;base64,{qr_img}");
+        background-size: cover;
+        background-position: center top;
+        box-shadow: 0 -15px 50px rgba(0,0,0,0.8);
+        z-index: 99;
+        transition: bottom 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }}
 
-/* 홈 화면 */
-.home {{
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/png;base64,{home_img}");
-    background-size: cover;
-    background-position: center top;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}}
+    .timer-overlay {{
+        position: absolute;
+        top: 52.5%; 
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        z-index: 101;
+        pointer-events: none;
+    }}
 
-.home.blur {{
-    filter: blur(15px) brightness(0.6);
-    transform: scale(1.05);
-}}
+    .timer-text {{
+        color: white;
+        font-size: 18px;
+        font-family: sans-serif;
+    }}
 
-/* QR 시트 (항상 존재하지만 위치만 아래에 숨김) */
-.qr-sheet {{
-    position: absolute;
-    left: 0;
-    bottom: -100%; /* 처음엔 아래에 숨어있음 */
-    width: 100%;
-    height: 85%;
-    border-radius: 30px 30px 0 0;
-    background-image: url("data:image/png;base64,{qr_img}");
-    background-size: cover;
-    background-position: center top;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
-    z-index: 99;
-    transition: bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}}
+    .refresh-btn {{
+        pointer-events: auto;
+        cursor: pointer;
+        width: 22px;
+        height: 22px;
+        fill: white;
+    }}
 
-/* 활성화 시 올라오는 클래스 */
-.qr-sheet.active {{
-    bottom: 0;
-}}
-
-/* 버튼들을 HTML 위에 띄우기 위한 설정 */
-.stButton {{
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    width: 200px;
-}}
+    .stButton {{ position: fixed; left: 0; width: 100%; z-index: 1000; }}
+    .stButton > button {{
+        background: transparent !important;
+        color: transparent !important;
+        border: none !important;
+        width: 100% !important;
+        height: {"35vh" if st.session_state.show_qr else "100px"} !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# 5. 메인 화면 구성
-# 클래스 조건부 부여
-home_class = "home blur" if st.session_state.show_qr else "home"
-qr_class = "qr-sheet active" if st.session_state.show_qr else "qr-sheet"
-
-# HTML은 한 번에 렌더링
-phone_html = f"""
+# 5. HTML 및 타이머 자바스크립트
+phone_content = f"""
 <div class="phone">
-    <div class="{home_class}"></div>
-    <div class="{qr_class}"></div>
+    <div class="home"></div>
+    <div class="qr-sheet">
+        <div class="timer-overlay">
+            <span id="countdown_text" class="timer-text">59초 남았습니다.</span>
+            <svg class="refresh-btn" id="refresh_svg" viewBox="0 0 24 24">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+        </div>
+    </div>
 </div>
-"""
-st.markdown(phone_html, unsafe_allow_html=True)
 
-# 6. 버튼 (UI 하단 중앙 배치)
+<script>
+    (function() {{
+        let timeLeft = 59;
+        const textEl = document.getElementById('countdown_text');
+        const refreshEl = document.getElementById('refresh_svg');
+
+        // 타이머 로직
+        const timerInterval = setInterval(() => {{
+            if (timeLeft > 0) {{
+                timeLeft--;
+            }} else {{
+                timeLeft = 59;
+            }}
+            
+            if (textEl) {{
+                textEl.innerText = timeLeft + "초 남았습니다.";
+            }} else {{
+                clearInterval(timerInterval);
+            }}
+        }}, 1000);
+
+        // 리셋 버튼 로직
+        if (refreshEl) {{
+            refreshEl.onclick = () => {{
+                timeLeft = 59;
+                if (textEl) textEl.innerText = "59초 남았습니다.";
+            }};
+        }}
+    }})();
+</script>
+"""
+
+st.markdown(phone_content, unsafe_allow_html=True)
+
+# 6. 투명 버튼 (오픈/닫기)
 if not st.session_state.show_qr:
-    if st.button("My QR", key="open_btn"):
-        st.session_state.show_qr = True
-        st.rerun()
+    st.markdown('<style>.stButton { bottom: 80px; }</style>', unsafe_allow_html=True)
+    st.button("OPEN", key="btn_open", on_click=lambda: st.session_state.update({"show_qr": True}))
 else:
-    if st.button("닫기", key="close_btn"):
-        st.session_state.show_qr = False
-        st.rerun()
+    st.markdown('<style>.stButton { top: 0; }</style>', unsafe_allow_html=True)
+    st.button("CLOSE", key="btn_close", on_click=lambda: st.session_state.update({"show_qr": False}))
